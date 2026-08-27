@@ -2,6 +2,7 @@ import { ChangeEvent, FormEvent, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, Check, Upload } from "lucide-react";
 import { getProductName, getProductUnitPrice, getSalesWhatsAppUrl, type PaymentMethod, type StoreOrder, useStore } from "@/components/store/StoreLayout";
+import { storeApi } from "@/lib/api";
 
 type CheckoutForm = {
   customerName: string;
@@ -23,6 +24,7 @@ export default function Checkout() {
   const [form, setForm] = useState<CheckoutForm>({ customerName: "", phone: "", address: "", notes: "" });
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cod");
   const [receipt, setReceipt] = useState("");
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [attempted, setAttempted] = useState(false);
 
   const appliedCoupon = coupons.find((coupon) => coupon.code === appliedCouponCode && coupon.active) || null;
@@ -35,7 +37,7 @@ export default function Checkout() {
   const nameIsValid = /^\p{L}+(?:\s+\p{L}+)*$/u.test(form.customerName.trim());
   const phoneIsValid = /^\d{7,15}$/.test(form.phone.trim());
   const addressIsValid = Boolean(form.address.trim());
-  const paymentIsValid = paymentMethod === "cod" || (Boolean(transferNumber?.trim()) && Boolean(receipt));
+  const paymentIsValid = paymentMethod === "cod" || (Boolean(transferNumber?.trim()) && Boolean(receiptFile));
   const isFormValid = nameIsValid && phoneIsValid && addressIsValid && paymentIsValid;
 
   const updateField = (field: keyof CheckoutForm, value: string) => setForm((current) => ({ ...current, [field]: value }));
@@ -43,11 +45,12 @@ export default function Checkout() {
     const file = event.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
+    setReceiptFile(file);
     reader.onload = () => setReceipt(String(reader.result));
     reader.readAsDataURL(file);
   };
 
-  const submitOrder = (event: FormEvent) => {
+  const submitOrder = async (event: FormEvent) => {
     event.preventDefault();
     setAttempted(true);
     if (!isFormValid) return;
@@ -81,8 +84,16 @@ export default function Checkout() {
       }),
     };
 
-    addOrder(order);
-    clearCart();
+    try {
+      const receiptPath = paymentMethod === "cod" ? undefined : (await storeApi.uploadReceipt(receiptFile!)).path;
+      const serverOrder = await storeApi.createOrder({ id: order.id, idempotencyKey: `web-${order.id}`, customerName: order.customerName!, phone: order.phone!, address: order.address!, notes: order.notes, paymentMethod, transferNumber: order.transferNumber, receiptPath, shippingAmount: shipping, couponCode: appliedCoupon?.code, items: cartItems.map(({ product, quantity, variant }) => ({ productId: product.id, quantity, name: getProductName(product, language), ...variant })) });
+      if (typeof serverOrder.id === "string") order.id = serverOrder.id;
+      addOrder(order);
+      clearCart();
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : (isEnglish ? "Unable to submit order." : "تعذر إرسال الطلب."));
+      return;
+    }
 
     const message = [
       `New order: ${order.id}`,

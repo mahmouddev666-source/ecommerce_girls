@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { BarChart3, ImagePlus, LayoutDashboard, LogOut, Palette, Plus, Save, Settings, Trash2, Upload, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useStore, type PageSettings, type SectionSettings, type SiteSettings, type StoreProduct } from "@/components/store/StoreLayout";
+import { storeApi } from "@/lib/api";
 
 const categories = ["Sets", "Blouses / shirts", "Skirts / pants", "Denims", "Dresses"];
 const categoryLabels: Record<string, string> = { Sets: "Sets", "Blouses / shirts": "Blouses / shirts", "Skirts / pants": "Skirts / pants", Denims: "Denims", Dresses: "Dresses" };
@@ -78,6 +79,16 @@ export default function Admin() {
   const sales = orders.reduce((total, order) => total + order.total, 0);
   const currentSection: SectionSettings = sections[sectionKey] || { title: "", description: "", image: "" };
   const notify = () => { setSaved(true); window.setTimeout(() => setSaved(false), 2200); };
+  const exportLocalData = () => {
+    const data = Object.fromEntries(["no-name-products", "no-name-settings", "no-name-sections", "no-name-pages", "no-name-coupons", "no-name-orders", "no-name-cart"].map((key) => [key, JSON.parse(localStorage.getItem(key) || "null")]));
+    const url = URL.createObjectURL(new Blob([JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), localStorage: data }, null, 2)], { type: "application/json" }));
+    const link = document.createElement("a"); link.href = url; link.download = "no-name-local-export.json"; link.click(); URL.revokeObjectURL(url);
+  };
+  const importLocalData = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => { try { const parsed = JSON.parse(String(reader.result)); const data = parsed.localStorage || parsed; Object.entries(data).forEach(([key, value]) => { if (key.startsWith("no-name-")) localStorage.setItem(key, JSON.stringify(value)); }); void storeApi.admin.import({ products: data["no-name-products"] || undefined, coupons: data["no-name-coupons"] || undefined }); window.location.reload(); } catch { window.alert("Invalid import file."); } };
+    reader.readAsText(file);
+  };
   const logout = async () => {
     await fetch("/api/admin/logout", { method: "POST", credentials: "include" });
     navigate("/admin/login", { replace: true });
@@ -188,7 +199,7 @@ export default function Admin() {
           </div>
           <div className="dashboard-actions">
             {saved && <div className="dashboard-toast">{isEnglish ? "Saved successfully" : "تم الحفظ بنجاح"}</div>}
-            <button type="button" onClick={() => navigate("/")} className="dashboard-action-button">{isEnglish ? "View site" : "عرض الموقع"}</button><button type="button" onClick={logout} className="dashboard-action-button flex items-center gap-2"><LogOut size={14} />{isEnglish ? "Sign out" : "تسجيل الخروج"}</button>
+            <button type="button" onClick={exportLocalData} className="dashboard-action-button">{isEnglish ? "Export local data" : "تصدير البيانات"}</button><label className="dashboard-action-button cursor-pointer">{isEnglish ? "Import JSON" : "استيراد JSON"}<input type="file" accept="application/json" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) importLocalData(file); }} /></label><button type="button" onClick={() => navigate("/")} className="dashboard-action-button">{isEnglish ? "View site" : "عرض الموقع"}</button><button type="button" onClick={logout} className="dashboard-action-button flex items-center gap-2"><LogOut size={14} />{isEnglish ? "Sign out" : "تسجيل الخروج"}</button>
           </div>
         </div>
 

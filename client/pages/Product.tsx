@@ -24,7 +24,7 @@ export default function Product() {
   useEffect(() => { setSelectedThumbnail(0); }, [product.id]);
 
   const add = () => {
-    for (let count = 0; count < quantity; count += 1) addToCart(product);
+    for (let count = 0; count < quantity; count += 1) addToCart(product, { size: selectedSize, color: selectedColor });
     setAdded(true);
   };
 
@@ -160,7 +160,7 @@ export default function Product() {
                       <span className="mt-1 inline-flex rounded-full bg-white/75 px-2 py-0.5 text-[8px] text-black/55">{suggestionIndex === 1 ? (isEnglish ? "Off-white / M" : "أوف وايت / مقاس متوسط") : (isEnglish ? "Black / L" : "أسود / L")}</span>
                     </Link>
                     {suggestionIndex === 1 ? (
-                      <button onClick={() => addToCart(item)} className="flex h-9 shrink-0 items-center gap-1 rounded-xl bg-[#222] px-3 text-[9px] font-semibold text-white"><Plus size={12} /> {isEnglish ? "Add" : "يضاف"}</button>
+                      <button onClick={() => addToCart(item, { size: item.sizes?.[0] || "L", color: item.colors?.[0] })} className="flex h-9 shrink-0 items-center gap-1 rounded-xl bg-[#222] px-3 text-[9px] font-semibold text-white"><Plus size={12} /> {isEnglish ? "Add" : "يضاف"}</button>
                     ) : (
                       <Link to={`/product/${item.id}`} className="flex h-9 w-10 shrink-0 items-center justify-center rounded-xl bg-[#d7d7d3] text-[9px] text-black/55">{isEnglish ? "View" : "تنفيذ"}</Link>
                     )}

@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ArrowLeft, Facebook, Instagram, Menu, MessageCircle, Music2, Search, ShoppingBag, X, Youtube } from "lucide-react";
+import { storeApi } from "@/lib/api";
+import type { ProductRecord } from "@shared/api";
 
 export const products = [
   { id: "set-01", name: "طقم كتان بلون الجمل", price: "2,490 ج.م", numericPrice: 2490, category: "أطقم", image: "https://images.unsplash.com/photo-1591369822096-ffd140ec948f?auto=format&fit=crop&w=700&q=85", tag: "جديد" },
@@ -116,7 +118,10 @@ export const categories = [
 ];
 
 export type StoreProduct = Omit<typeof products[number], "nameEn"> & { nameEn?: string; description?: string; descriptionEn?: string; stock?: number; lowStockThreshold?: number; originalPrice?: number; salePrice?: number; badge?: string; colors?: string[]; sizes?: string[]; video?: string; images?: string[] };
-export type CartItem = { product: StoreProduct; quantity: number };
+export type CartVariant = { size?: string; color?: string };
+export type CartItem = { product: StoreProduct; quantity: number; variant?: CartVariant };
+export const productFromApi = (record: ProductRecord): StoreProduct => ({ id: record.id, name: record.name, nameEn: record.name_en, price: `${(record.sale_price ?? record.price).toLocaleString("en-US")} ج.م`, numericPrice: record.price, originalPrice: record.original_price, salePrice: record.sale_price, category: record.category, image: record.image, images: record.images, description: record.description, descriptionEn: record.description_en, badge: record.badge, tag: record.tag, colors: record.colors, sizes: record.sizes, video: record.video, stock: record.stock ?? 12, lowStockThreshold: record.low_stock_threshold ?? 3 });
+const cartKey = (item: Pick<CartItem, "product" | "variant">) => `${item.product.id}|${item.variant?.size || ""}|${item.variant?.color || ""}`;
 export type SiteSettings = { announcement: string; accent: string; heroTitle?: string; heroDescription?: string; walletNumber?: string; instapayNumber?: string; salesWhatsappNumber?: string; salesWhatsappUrl?: string; discoverVideos?: string[]; socialLinks?: { instagram?: string; facebook?: string; youtube?: string; whatsapp?: string; tiktok?: string } };
 export type SectionSettings = { title: string; description: string; image: string; video?: string };
 export type PageSettings = {
@@ -133,7 +138,7 @@ export const getSalesWhatsAppUrl = (settings: SiteSettings) => {
   const number = settings.salesWhatsappNumber?.replace(/\D/g, "");
   return settings.salesWhatsappUrl?.trim() || (number ? `https://wa.me/${number}` : settings.socialLinks?.whatsapp || "https://wa.me/201553003040");
 };
-type StoreContextValue = { cart: number; cartItems: CartItem[]; catalog: StoreProduct[]; siteSettings: SiteSettings; sections: Record<string, SectionSettings>; pageSettings: PageSettings; coupons: Coupon[]; appliedCouponCode: string; setAppliedCouponCode: (code: string) => void; orders: StoreOrder[]; addToCart: (product: StoreProduct) => void; removeFromCart: (id: string) => void; updateQuantity: (id: string, quantity: number) => void; clearCart: () => void; addProduct: (product: StoreProduct) => void; updateProduct: (product: StoreProduct) => void; deleteProduct: (id: string) => void; addOrder: (order: StoreOrder) => void; updateSiteSettings: (settings: SiteSettings) => void; updateSection: (key: string, section: SectionSettings) => void; updatePageSettings: (settings: PageSettings) => void; addCoupon: (coupon: Coupon) => void; deleteCoupon: (code: string) => void; liked: number[]; toggleLike: (index: number) => void; language: Language; toggleLanguage: () => void };
+type StoreContextValue = { cart: number; cartItems: CartItem[]; catalog: StoreProduct[]; siteSettings: SiteSettings; sections: Record<string, SectionSettings>; pageSettings: PageSettings; coupons: Coupon[]; appliedCouponCode: string; setAppliedCouponCode: (code: string) => void; orders: StoreOrder[]; addToCart: (product: StoreProduct, variant?: CartVariant) => void; removeFromCart: (id: string, variant?: CartVariant) => void; updateQuantity: (id: string, quantity: number, variant?: CartVariant) => void; clearCart: () => void; addProduct: (product: StoreProduct) => void; updateProduct: (product: StoreProduct) => void; deleteProduct: (id: string) => void; addOrder: (order: StoreOrder) => void; updateSiteSettings: (settings: SiteSettings) => void; updateSection: (key: string, section: SectionSettings) => void; updatePageSettings: (settings: PageSettings) => void; addCoupon: (coupon: Coupon) => void; deleteCoupon: (code: string) => void; liked: number[]; toggleLike: (index: number) => void; language: Language; toggleLanguage: () => void };
 const StoreContext = createContext<StoreContextValue | null>(null);
 export const useStore = () => {
   const context = useContext(StoreContext);
@@ -157,7 +162,7 @@ export function StoreLayout({ children }: { children: ReactNode }) {
   const [pageSettings, setPageSettings] = useState<PageSettings>(() => { try { const saved = JSON.parse(localStorage.getItem("no-name-pages") || "null") as Partial<PageSettings> | null; return { ...defaultPageSettings, ...saved, about: { ...defaultPageSettings.about, ...saved?.about }, shipping: { ...defaultPageSettings.shipping, ...saved?.shipping }, contact: { ...defaultPageSettings.contact, ...saved?.contact } }; } catch { return defaultPageSettings; } });
   const [coupons, setCoupons] = useState<Coupon[]>(() => { try { return JSON.parse(localStorage.getItem("no-name-coupons") || "[]"); } catch { return []; } });
   const [orders, setOrders] = useState<StoreOrder[]>(() => { try { return JSON.parse(localStorage.getItem("no-name-orders") || "[]"); } catch { return []; } });
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [cartItems, setCartItems] = useState<CartItem[]>(() => { try { return JSON.parse(localStorage.getItem("no-name-cart") || "[]") as CartItem[]; } catch { return []; } });
   const [appliedCouponCode, setAppliedCouponCode] = useState("");
   const [liked, setLiked] = useState<number[]>([]);
   const [email, setEmail] = useState("");
@@ -172,6 +177,21 @@ export function StoreLayout({ children }: { children: ReactNode }) {
     return new URLSearchParams(location.search).toString() === new URLSearchParams(query).toString();
   };
   useEffect(() => { localStorage.setItem("no-name-products", JSON.stringify(catalog)); }, [catalog]);
+  useEffect(() => { localStorage.setItem("no-name-cart", JSON.stringify(cartItems)); }, [cartItems]);
+  useEffect(() => {
+    let mounted = true;
+    Promise.allSettled([storeApi.products(), storeApi.settings()]).then(([productResult, settingsResult]) => {
+      if (!mounted) return;
+      if (productResult.status === "fulfilled" && productResult.value.length) setCatalog(productResult.value.map(productFromApi));
+      if (settingsResult.status === "fulfilled" && Object.keys(settingsResult.value).length) setSiteSettings((current) => ({ ...current, ...settingsResult.value } as SiteSettings));
+    });
+    Promise.allSettled([storeApi.admin.coupons(), storeApi.admin.orders()]).then(([couponResult, orderResult]) => {
+      if (!mounted) return;
+      if (couponResult.status === "fulfilled") setCoupons(couponResult.value.map((item: any) => ({ code: String(item.code), discount: Number(item.discount), uses: Number(item.uses || 0), active: item.active !== false })));
+      if (orderResult.status === "fulfilled") setOrders(orderResult.value.map((item: any) => ({ ...item, id: String((item as any).id), date: String((item as any).created_at || (item as any).date || new Date().toISOString()), total: Number((item as any).total || 0), items: Number((item as any).items || 0), status: ((item as any).status || "جديد") as StoreOrder["status"] })));
+    });
+    return () => { mounted = false; };
+  }, []);
   useEffect(() => { const handleScroll = () => setIsScrolled(window.scrollY > 12); handleScroll(); window.addEventListener("scroll", handleScroll, { passive: true }); return () => window.removeEventListener("scroll", handleScroll); }, []);
   useEffect(() => { setCatalog((current) => current.filter((product) => product.id !== "check-print-set")); }, []);
   useEffect(() => { localStorage.setItem("no-name-language", language); localStorage.setItem("no-name-language-version", "2"); document.documentElement.lang = language; document.documentElement.dir = isEnglish ? "ltr" : "rtl"; }, [language, isEnglish]);
@@ -182,25 +202,25 @@ export function StoreLayout({ children }: { children: ReactNode }) {
   useEffect(() => { localStorage.setItem("no-name-coupons", JSON.stringify(coupons)); }, [coupons]);
   useEffect(() => { localStorage.setItem("no-name-orders", JSON.stringify(orders)); }, [orders]);
   useEffect(() => { window.scrollTo(0, 0); }, [location.pathname, location.search]);
-  const addToCart = (product: typeof products[number]) => setCartItems((current) => { const existing = current.find((item) => item.product.id === product.id); return existing ? current.map((item) => item.product.id === product.id ? { ...item, quantity: item.quantity + 1 } : item) : [...current, { product, quantity: 1 }]; });
-  const removeFromCart = (id: string) => setCartItems((current) => current.filter((item) => item.product.id !== id));
-  const updateQuantity = (id: string, quantity: number) => setCartItems((current) => quantity < 1 ? current.filter((item) => item.product.id !== id) : current.map((item) => item.product.id === id ? { ...item, quantity } : item));
+  const addToCart = (product: StoreProduct, variant?: CartVariant) => setCartItems((current) => { const key = cartKey({ product, variant }); const existing = current.find((item) => cartKey(item) === key); return existing ? current.map((item) => cartKey(item) === key ? { ...item, quantity: item.quantity + 1 } : item) : [...current, { product, quantity: 1, variant }]; });
+  const removeFromCart = (id: string, variant?: CartVariant) => setCartItems((current) => current.filter((item) => cartKey(item) !== cartKey({ product: { id } as StoreProduct, variant })));
+  const updateQuantity = (id: string, quantity: number, variant?: CartVariant) => setCartItems((current) => quantity < 1 ? current.filter((item) => cartKey(item) !== cartKey({ product: { id } as StoreProduct, variant })) : current.map((item) => cartKey(item) === cartKey({ product: { id } as StoreProduct, variant }) ? { ...item, quantity } : item));
   const clearCart = () => { setCartItems([]); setAppliedCouponCode(""); };
   const cart = cartItems.reduce((total, item) => total + item.quantity, 0);
   const toggleLike = (index: number) => setLiked((current) => current.includes(index) ? current.filter((item) => item !== index) : [...current, index]);
-  const addProduct = (product: StoreProduct) => setCatalog((current) => [...current, product]);
-  const updateProduct = (product: StoreProduct) => setCatalog((current) => current.map((item) => item.id === product.id ? product : item));
-  const deleteProduct = (id: string) => setCatalog((current) => current.filter((item) => item.id !== id));
+  const addProduct = (product: StoreProduct) => { setCatalog((current) => [...current, product]); void storeApi.admin.createProduct({ ...product, nameEn: product.nameEn, lowStockThreshold: product.lowStockThreshold }); };
+  const updateProduct = (product: StoreProduct) => { setCatalog((current) => current.map((item) => item.id === product.id ? product : item)); void storeApi.admin.updateProduct(product.id, { ...product, nameEn: product.nameEn, lowStockThreshold: product.lowStockThreshold }); };
+  const deleteProduct = (id: string) => { setCatalog((current) => current.filter((item) => item.id !== id)); void storeApi.admin.deleteProduct(id); };
   const addOrder = (order: StoreOrder) => {
     const next = [order, ...orders];
     localStorage.setItem("no-name-orders", JSON.stringify(next));
     setOrders(next);
   };
-  const updateSiteSettings = (settings: SiteSettings) => setSiteSettings(settings);
+  const updateSiteSettings = (settings: SiteSettings) => { setSiteSettings(settings); void Promise.all(Object.entries(settings).map(([key, value]) => storeApi.admin.settings(key, value))); };
   const updateSection = (key: string, section: SectionSettings) => setSections((current) => ({ ...current, [key]: section }));
   const updatePageSettings = (settings: PageSettings) => setPageSettings(settings);
-  const addCoupon = (coupon: Coupon) => setCoupons((current) => [...current, coupon]);
-  const deleteCoupon = (code: string) => setCoupons((current) => current.filter((coupon) => coupon.code !== code));
+  const addCoupon = (coupon: Coupon) => { setCoupons((current) => [...current, coupon]); void storeApi.admin.createCoupon({ code: coupon.code, discount: coupon.discount, active: coupon.active }); };
+  const deleteCoupon = (code: string) => { setCoupons((current) => current.filter((coupon) => coupon.code !== code)); void storeApi.admin.deleteCoupon(code); };
   const nav = (path: string) => { setMenuOpen(false); navigate(path); };
 
   return <StoreContext.Provider value={{ cart, cartItems, catalog, siteSettings, sections, pageSettings, coupons, appliedCouponCode, setAppliedCouponCode, orders, addToCart, removeFromCart, updateQuantity, clearCart, addProduct, updateProduct, deleteProduct, addOrder, updateSiteSettings, updateSection, updatePageSettings, addCoupon, deleteCoupon, liked, toggleLike, language, toggleLanguage }}>

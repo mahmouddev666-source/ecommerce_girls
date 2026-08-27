@@ -1,0 +1,12 @@
+-- Reference schema for the No Name store. Apply migrations in order with Supabase CLI.
+-- Unified human reference for the Supabase schema.
+-- Apply 001_admin_security.sql first, then 002_store_schema.sql.
+-- The complete executable commerce schema, constraints, indexes, RLS, trigger, and
+-- create_store_order function are maintained in migrations/002_store_schema.sql.
+-- Objects: admin_users, admin_sessions, audit_logs, categories, products,
+-- product_variants, orders, order_items, coupons, coupon_redemptions,
+-- store_settings, site_settings, and uploads.
+-- Storage: create a private bucket named receipts:
+-- insert into storage.buckets (id, name, public) values ('order-receipts', 'order-receipts', false)
+-- on conflict (id) do update set public = false;
+-- The server uses the service-role key only. Never expose it to browser code.
