@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { storeApi } from "@/lib/api";
 import { ArrowLeft } from "lucide-react";
 import { useStore, type StoreOrder } from "@/components/store/StoreLayout";
 
@@ -6,6 +8,8 @@ export default function OrderSummary() {
   const { id } = useParams();
   const { orders, language } = useStore();
   const isEnglish = language === "en";
+  const [remoteOrder, setRemoteOrder] = useState<StoreOrder | undefined>();
+  useEffect(() => { if (id) storeApi.order(id).then((value) => setRemoteOrder({ ...value, id: String(value.id || id), date: String(value.created_at || value.date || new Date().toISOString()), total: Number(value.total || 0), status: (value.status as StoreOrder["status"]) || "جديد", items: Number(value.items || 0), orderItems: Array.isArray(value.items) ? value.items as StoreOrder["orderItems"] : undefined } as StoreOrder)).catch(() => undefined); }, [id]);
   const storedOrder = (() => {
     try {
       const saved = JSON.parse(localStorage.getItem("no-name-orders") || "[]") as StoreOrder[];
@@ -14,7 +18,7 @@ export default function OrderSummary() {
       return undefined;
     }
   })();
-  const order = orders.find((item) => item.id === id) || storedOrder;
+  const order = remoteOrder || orders.find((item) => item.id === id) || storedOrder;
 
   if (!order) {
     return <section className="mx-auto max-w-[760px] px-5 py-20 text-center lg:px-8"><h1 className="font-serif text-4xl">{isEnglish ? "Order not found" : "الطلب غير موجود"}</h1><Link to="/shop" className="mt-8 inline-flex items-center gap-5 border-b border-[#1c2822] pb-3 text-[11px] font-bold">{isEnglish ? "Continue shopping" : "متابعة التسوق"}<ArrowLeft size={16} /></Link></section>;

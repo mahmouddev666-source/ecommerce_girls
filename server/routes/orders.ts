@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { createSignedStorageUrl, serviceUnavailable, supabaseRequest, supabaseRpc } from "../db";
 
-const itemSchema = z.object({ productId: z.string().trim().min(1).max(128), quantity: z.number().int().min(1).max(100), name: z.string().trim().max(300).optional() });
+const itemSchema = z.object({ productId: z.string().trim().min(1).max(128), variantId: z.string().trim().max(128).optional(), quantity: z.number().int().min(1).max(100), name: z.string().trim().max(300).optional(), size: z.string().trim().max(30).optional(), color: z.string().trim().max(60).optional() });
 const orderSchema = z.object({ id: z.string().trim().max(128).optional(), idempotencyKey: z.string().trim().min(8).max(200), customerName: z.string().trim().regex(/^\p{L}+(?:\s+\p{L}+)*$/u).max(120), phone: z.string().trim().regex(/^\d{7,15}$/), address: z.string().trim().min(3).max(1000), notes: z.string().trim().max(1000).optional(), paymentMethod: z.enum(["cod", "wallet", "instapay"]), transferNumber: z.string().trim().max(100).optional(), receiptPath: z.string().regex(/^[a-zA-Z0-9/_-]+$/).max(300).optional(), shippingAmount: z.number().min(0).max(100000).default(0), couponCode: z.string().trim().toUpperCase().max(64).optional(), items: z.array(itemSchema).min(1).max(100) });
 
 export const ordersRouter = Router();

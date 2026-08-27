@@ -33,8 +33,10 @@ export function createServer() {
   app.get("/api/demo", handleDemo);
   app.use("/api/products", productsRouter);
   app.use("/api/settings", settingsRouter);
+  app.use("/api/site/settings", settingsRouter);
   app.use("/api/orders", ordersRouter);
   app.use("/api/uploads", uploadsRouter);
+  app.use("/api/uploads/receipt", uploadsRouter);
   app.use("/api/admin/products", adminProductsRouter);
   app.use("/api/admin/orders", adminOrdersRouter);
   app.use("/api/admin/settings", adminSettingsRouter);

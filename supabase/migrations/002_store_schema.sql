@@ -69,16 +69,91 @@ create table if not exists public.coupons (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.categories (
+  id uuid primary key default gen_random_uuid(),
+  slug text unique not null,
+  name_ar text not null,
+  name_en text not null,
+  sort_order integer not null default 0,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+alter table public.products add column if not exists slug text;
+update public.products set slug = id where slug is null;
+alter table public.products alter column slug set not null;
+alter table public.products add column if not exists category_id uuid references public.categories(id);
+
+create table if not exists public.product_variants (
+  id uuid primary key default gen_random_uuid(),
+  product_id text not null references public.products(id) on delete cascade,
+  size text not null,
+  color text not null,
+  sku text unique,
+  stock integer not null default 0 check (stock >= 0),
+  reserved_stock integer not null default 0 check (reserved_stock >= 0),
+  unique (product_id, size, color)
+);
+
+alter table public.order_items add column if not exists variant_id uuid references public.product_variants(id);
+alter table public.order_items add column if not exists size_snapshot text;
+alter table public.order_items add column if not exists color_snapshot text;
+alter table public.orders add column if not exists public_reference text;
+update public.orders set public_reference = id where public_reference is null;
+alter table public.orders alter column public_reference set not null;
+create unique index if not exists orders_public_reference_idx on public.orders(public_reference);
+
 create index if not exists products_active_category_idx on public.products(is_active, category);
+create index if not exists products_category_id_idx on public.products(category_id);
+create index if not exists variants_product_idx on public.product_variants(product_id);
 create index if not exists orders_created_at_idx on public.orders(created_at desc);
+
+create table if not exists public.coupon_redemptions (
+  id uuid primary key default gen_random_uuid(),
+  coupon_code text not null references public.coupons(code),
+  order_id text not null references public.orders(id) on delete cascade,
+  unique (coupon_code, order_id)
+);
+
+create table if not exists public.site_settings (
+  key text primary key,
+  value_json jsonb not null,
+  updated_by uuid references public.admin_users(id),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.uploads (
+  id uuid primary key default gen_random_uuid(),
+  storage_key text unique not null,
+  owner_type text not null,
+  owner_id text not null,
+  mime_type text not null,
+  size_bytes integer not null check (size_bytes > 0),
+  created_at timestamptz not null default now()
+);
 
 alter table public.products enable row level security;
 alter table public.store_settings enable row level security;
 alter table public.orders enable row level security;
 alter table public.order_items enable row level security;
 alter table public.coupons enable row level security;
+alter table public.categories enable row level security;
+alter table public.product_variants enable row level security;
+alter table public.coupon_redemptions enable row level security;
+alter table public.site_settings enable row level security;
+alter table public.uploads enable row level security;
 
-do $$ begin
+create or replace function public.set_updated_at()
+returns trigger language plpgsql as $$
+begin new.updated_at = now(); return new; end;
+$$;
+
+drop trigger if exists products_set_updated_at on public.products;
+create trigger products_set_updated_at before update on public.products for each row execute function public.set_updated_at();
+drop trigger if exists settings_set_updated_at on public.store_settings;
+create trigger settings_set_updated_at before update on public.store_settings for each row execute function public.set_updated_at();
+
+ do $$ begin
   create policy products_public_read on public.products for select using (is_active = true);
 exception when duplicate_object then null; end $$;
 do $$ begin
