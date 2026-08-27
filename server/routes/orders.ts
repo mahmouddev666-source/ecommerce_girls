@@ -12,7 +12,7 @@ ordersRouter.post("/", async (req, res) => {
   if (parsed.data.paymentMethod !== "cod" && !parsed.data.receiptPath) { res.status(400).json({ error: "A payment receipt is required." }); return; }
   try {
     const order = await supabaseRpc<Record<string, unknown>>("create_store_order", { payload: { ...parsed.data, idempotency_key: parsed.data.idempotencyKey, customer_name: parsed.data.customerName, payment_method: parsed.data.paymentMethod, transfer_number: parsed.data.transferNumber, receipt_path: parsed.data.receiptPath, shipping_amount: parsed.data.shippingAmount, coupon_code: parsed.data.couponCode, items: parsed.data.items.map((item) => ({ ...item, product_id: item.productId })) } });
-    res.status(201).json({ ...order, receiptUrl: parsed.data.receiptPath ? await createSignedStorageUrl("receipts", parsed.data.receiptPath) : undefined });
+    res.status(201).json({ ...order, receiptUrl: parsed.data.receiptPath ? await createSignedStorageUrl("order-receipts", parsed.data.receiptPath) : undefined });
   } catch (error) {
     console.error("Order creation failed", error);
     const message = error instanceof Error ? error.message : "";

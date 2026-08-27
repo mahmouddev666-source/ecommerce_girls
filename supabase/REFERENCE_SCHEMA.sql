@@ -7,6 +7,6 @@
 -- product_variants, orders, order_items, coupons, coupon_redemptions,
 -- store_settings, site_settings, and uploads.
 -- Storage: create a private bucket named receipts:
--- insert into storage.buckets (id, name, public) values ('receipts', 'receipts', false)
+-- insert into storage.buckets (id, name, public) values ('order-receipts', 'order-receipts', false)
 -- on conflict (id) do update set public = false;
 -- The server uses the service-role key only. Never expose it to browser code.

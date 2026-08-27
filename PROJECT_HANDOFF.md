@@ -93,7 +93,7 @@ Put these values in the server/hosting environment, never in frontend code:
 - `APP_ORIGIN`: exact production origin used for credentialed CORS.
 - `NODE_ENV=production` in production so secure cookies are enabled.
 
-Run `001_admin_security.sql`, then `002_store_schema.sql`. Create a private Storage bucket named `receipts` in Supabase Storage. Keep it private and access it through signed URLs; configure upload size/MIME restrictions in the server route and hosting limits. Run `pnpm admin:create` only with the required server environment available. For migration, use Admin → Export Data, retain the generated JSON/localStorage copy, then Admin → Import Data. Import is additive/upsert-oriented and does not clear localStorage or delete database rows.
+Run `001_admin_security.sql`, then `002_store_schema.sql`. Create a private Storage bucket named `order-receipts` in Supabase Storage. Keep it private and access it through signed URLs; configure upload size/MIME restrictions in the server route and hosting limits. Run `pnpm admin:create` only with the required server environment available. For migration, use Admin → Export Data, retain the generated JSON/localStorage copy, then Admin → Import Data. Import is additive/upsert-oriented and does not clear localStorage or delete database rows.
 
 ### File map
 

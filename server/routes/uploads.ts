@@ -22,8 +22,8 @@ async function readMultipart(req: import("express").Request) {
 export const uploadsRouter = Router();
 uploadsRouter.post("/", async (req, res) => {
   try {
-    const { content, extension } = await readMultipart(req); const path = `receipts/${new Date().toISOString().slice(0, 10)}/${randomUUID()}.${extension}`; const { url, serviceRoleKey } = getSupabaseConfig();
-    const response = await fetch(`${url}/storage/v1/object/${path}`, { method: "POST", headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}`, "Content-Type": extension === "jpg" ? "image/jpeg" : `image/${extension}`, "x-upsert": "false" }, body: content });
+    const { content, extension } = await readMultipart(req); const path = `${new Date().toISOString().slice(0, 10)}/${randomUUID()}.${extension}`; const { url, serviceRoleKey } = getSupabaseConfig();
+    const response = await fetch(`${url}/storage/v1/object/order-receipts/${path}`, { method: "POST", headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}`, "Content-Type": extension === "jpg" ? "image/jpeg" : `image/${extension}`, "x-upsert": "false" }, body: content });
     if (!response.ok) throw new SupabaseError(response.status, "Upload failed", await response.text());
     res.status(201).json({ path });
   } catch (error) { const status = serviceUnavailable(error) ? 503 : error instanceof Error && /multipart|File|image|body|boundary/.test(error.message) ? 400 : 500; res.status(status).json({ error: serviceUnavailable(error) ? "Supabase is not configured." : error instanceof Error ? error.message : "Unable to upload file." }); }
