@@ -1,0 +1,8 @@
+import { Router } from "express";
+import { z } from "zod";
+import { requireAdmin, writeAuditLog } from "../auth";
+import { serviceUnavailable, supabaseRequest } from "../db";
+export const adminOrdersRouter=Router(); adminOrdersRouter.use(requireAdmin);
+adminOrdersRouter.get("/",async(req,res)=>{try{const status=typeof req.query.status==="string"?`&status=eq.${encodeURIComponent(req.query.status)}`:"";const orders=await supabaseRequest<unknown[]>(`orders?select=*&order=created_at.desc${status}`);res.json(orders);}catch(e){res.status(serviceUnavailable(e)?503:500).json({error:"Unable to load orders."});}});
+adminOrdersRouter.get("/:id",async(req,res)=>{try{const o=await supabaseRequest<Array<Record<string, unknown>>>(`orders?select=*&id=eq.${encodeURIComponent(req.params.id)}&limit=1`);if(!o[0]){res.status(404).json({error:"Order not found."});return;}const items=await supabaseRequest(`order_items?select=*&order_id=eq.${encodeURIComponent(req.params.id)}`);res.json({...o[0],items});}catch(e){res.status(serviceUnavailable(e)?503:500).json({error:"Unable to load order."});}});
+adminOrdersRouter.patch("/:id",async(req,res)=>{const p=z.object({status:z.string().trim().min(1).max(50)}).safeParse(req.body);if(!p.success){res.status(400).json({error:"Invalid status."});return;}try{const out=await supabaseRequest(`orders?id=eq.${encodeURIComponent(req.params.id)}`,{method:"PATCH",headers:{Prefer:"return=representation"},body:JSON.stringify(p.data)});await writeAuditLog("order.status",req.admin?.id,{id:req.params.id,status:p.data.status});res.json(out);}catch(e){res.status(serviceUnavailable(e)?503:500).json({error:"Unable to update order."});}});
