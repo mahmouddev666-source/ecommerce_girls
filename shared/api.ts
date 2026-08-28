@@ -31,11 +31,35 @@ export interface ProductRecord {
   stock?: number;
   low_stock_threshold?: number;
   is_active?: boolean;
+  variants?: ProductVariantRecord[];
 }
 
-export interface SiteSettingsRecord { key: string; value: unknown }
-export interface CategoryRecord { label: string; image?: string }
-export interface CartRequestItem { productId: string; variantId?: string; quantity: number; name?: string; size?: string; color?: string }
+export interface ProductVariantRecord {
+  id: string;
+  product_id: string;
+  size: string;
+  color: string;
+  sku?: string;
+  stock: number;
+  reserved_stock?: number;
+}
+
+export interface SiteSettingsRecord {
+  key: string;
+  value: unknown;
+}
+export interface CategoryRecord {
+  label: string;
+  image?: string;
+}
+export interface CartRequestItem {
+  productId: string;
+  variantId?: string;
+  quantity: number;
+  name?: string;
+  size?: string;
+  color?: string;
+}
 export interface CreateOrderRequest {
   id?: string;
   idempotencyKey: string;
@@ -46,11 +70,26 @@ export interface CreateOrderRequest {
   paymentMethod: "cod" | "wallet" | "instapay";
   transferNumber?: string;
   receiptPath?: string;
-  shippingAmount: number;
   couponCode?: string;
   items: CartRequestItem[];
 }
-export interface OrderRecord { id: string; date?: string; created_at?: string; total?: number; [key: string]: unknown }
-export interface UploadReceiptResponse { path: string }
-export interface ImportStoreRequest { products?: Record<string, unknown>[]; settings?: SiteSettingsRecord[]; coupons?: Record<string, unknown>[] }
-export interface ImportStoreResponse { imported: { products: number; settings: number; coupons: number } }
+export interface OrderRecord {
+  id: string;
+  date?: string;
+  created_at?: string;
+  total?: number;
+  [key: string]: unknown;
+}
+export interface UploadReceiptResponse {
+  path: string;
+}
+export interface ImportStoreRequest {
+  products?: Record<string, unknown>[];
+  variants?: Record<string, unknown>[];
+  categories?: Record<string, unknown>[];
+  settings?: SiteSettingsRecord[];
+  coupons?: Record<string, unknown>[];
+}
+export interface ImportStoreResponse {
+  imported: { products: number; variants: number; categories: number; settings: number; coupons: number };
+}

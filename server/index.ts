@@ -12,6 +12,7 @@ import { adminOrdersRouter } from "./routes/admin-orders";
 import { adminSettingsRouter } from "./routes/admin-settings";
 import { adminCouponsRouter } from "./routes/admin-coupons";
 import { adminImportRouter } from "./routes/admin-import";
+import { categoriesRouter } from "./routes/categories";
 
 export function createServer() {
   const app = express();
@@ -32,6 +33,7 @@ export function createServer() {
 
   app.get("/api/demo", handleDemo);
   app.use("/api/products", productsRouter);
+  app.use("/api/categories", categoriesRouter);
   app.use("/api/settings", settingsRouter);
   app.use("/api/site/settings", settingsRouter);
   app.use("/api/orders", ordersRouter);
