@@ -1,14 +1,20 @@
 import { useEffect, useState } from "react";
 import {
   BarChart3,
+  CheckCircle2,
   ImagePlus,
+  Key,
   LayoutDashboard,
+  Lock,
   LogOut,
   Palette,
   Plus,
   Save,
   Settings,
+  Sparkles,
   Trash2,
+  Truck,
+  Unlock,
   Upload,
   X,
 } from "lucide-react";
@@ -18,9 +24,11 @@ import {
   type PageSettings,
   type SectionSettings,
   type SiteSettings,
+  type StoreOrder,
   type StoreProduct,
 } from "@/components/store/StoreLayout";
 import { storeApi } from "@/lib/api";
+import { STORE_THEMES, verifyThemeKey } from "@/lib/themes";
 
 const categories = [
   "Sets",
@@ -128,6 +136,7 @@ export default function Admin() {
     updateSiteSettings,
     updateSection,
     updatePageSettings,
+    updateOrderStatus,
     addCoupon,
     deleteCoupon,
   } = useStore();
@@ -147,9 +156,48 @@ export default function Admin() {
   const [pageDraft, setPageDraft] = useState<PageSettings>(pageSettings);
   const [coupon, setCoupon] = useState({ code: "", discount: 10 });
   const [saved, setSaved] = useState(false);
+  const [themeLicenseKey, setThemeLicenseKey] = useState("");
+  const [themeUnlockStatus, setThemeUnlockStatus] = useState<{ msg: string; success: boolean } | null>(null);
 
   useEffect(() => setSettings(siteSettings), [siteSettings]);
   useEffect(() => setPageDraft(pageSettings), [pageSettings]);
+
+  const unlockedThemesList = settings.unlockedThemes || ["casper_simple"];
+
+  const handleApplyTheme = (themeId: string) => {
+    const isUnlocked = unlockedThemesList.includes(themeId);
+    if (!isUnlocked) {
+      setThemeUnlockStatus({
+        msg: isEnglish ? "This theme is locked. Please enter a license key to unlock it." : "هذا الثيم مقفل كباقة مميزة، يرجى إدخال كود التفعيل لفتحه.",
+        success: false,
+      });
+      return;
+    }
+    const updated = { ...settings, themeId };
+    setSettings(updated);
+    updateSiteSettings(updated);
+    notify();
+  };
+
+  const handleUnlockTheme = (themeId: string) => {
+    if (verifyThemeKey(themeId, themeLicenseKey)) {
+      const nextUnlocked = Array.from(new Set([...unlockedThemesList, themeId]));
+      const updated = { ...settings, unlockedThemes: nextUnlocked, themeId };
+      setSettings(updated);
+      updateSiteSettings(updated);
+      setThemeLicenseKey("");
+      setThemeUnlockStatus({
+        msg: isEnglish ? "Theme successfully unlocked & activated!" : "تم تفعيل وفتح الثيم بنجاح وتطبيقه على المتجر!",
+        success: true,
+      });
+      notify();
+    } else {
+      setThemeUnlockStatus({
+        msg: isEnglish ? "Invalid license key. Please check and try again." : "كود التفعيل غير صحيح، يرجى التأكد وإعادة المحاولة.",
+        success: false,
+      });
+    }
+  };
 
   const lowStock = catalog.filter(
     (product) => (product.stock ?? 0) <= (product.lowStockThreshold ?? 3),
@@ -163,6 +211,54 @@ export default function Admin() {
   const notify = () => {
     setSaved(true);
     window.setTimeout(() => setSaved(false), 2200);
+  };
+  const [syncing, setSyncing] = useState(false);
+  const syncToDatabase = async () => {
+    try {
+      setSyncing(true);
+      await storeApi.admin.import({
+        products: catalog.map((p) => ({
+          id: p.id,
+          name: p.name,
+          name_en: p.nameEn,
+          price: p.salePrice && p.salePrice < (p.numericPrice || 0) ? p.salePrice : p.numericPrice,
+          original_price: p.originalPrice,
+          sale_price: p.salePrice,
+          category: p.category,
+          image: p.image,
+          images: p.images || [p.image],
+          description: p.description,
+          description_en: p.descriptionEn,
+          badge: p.badge,
+          tag: p.tag,
+          colors: p.colors || [],
+          sizes: p.sizes || [],
+          video: p.video,
+          stock: p.stock || 12,
+          low_stock_threshold: p.lowStockThreshold || 3,
+          is_active: true,
+        })),
+        settings: [
+          { key: "siteSettings", value: siteSettings },
+          { key: "sections", value: sections },
+          { key: "pageSettings", value: pageSettings },
+          { key: "shippingFee", value: siteSettings.shippingFee ?? 80 },
+          { key: "freeShippingThreshold", value: siteSettings.freeShippingThreshold ?? 2500 },
+        ],
+        coupons: coupons.map((c) => ({
+          code: c.code,
+          discount: c.discount,
+          uses: c.uses,
+          active: c.active,
+        })),
+      });
+      notify();
+      window.alert(isEnglish ? "Data successfully synced to Supabase!" : "تمت مزامنة ورفع البيانات إلى سوبا بيس بنجاح!");
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "Sync failed");
+    } finally {
+      setSyncing(false);
+    }
   };
   const exportLocalData = () => {
     const data = Object.fromEntries(
@@ -453,11 +549,21 @@ export default function Admin() {
       icon: Settings,
     },
     {
+      id: "themes",
+      label: isEnglish ? "Themes & Styling" : "الثيمات والمظهر",
+      icon: Sparkles,
+    },
+    {
       id: "pages",
       label: isEnglish ? "Pages" : "الصفحات",
       icon: LayoutDashboard,
     },
     { id: "coupons", label: isEnglish ? "Coupons" : "كوبونات", icon: Palette },
+    {
+      id: "shipping",
+      label: isEnglish ? "Shipping & Delivery" : "الشحن والتوصيل",
+      icon: Truck,
+    },
     {
       id: "reports",
       label: isEnglish ? "Sales & orders" : "المبيعات والطلبات",
@@ -469,8 +575,8 @@ export default function Admin() {
       title: isEnglish ? "Control center" : "مركز التحكم",
       items: [tabs[0], tabs[1]],
     },
-    { title: isEnglish ? "Content" : "المحتوى", items: [tabs[2], tabs[3]] },
-    { title: isEnglish ? "Marketing" : "التسويق", items: [tabs[4], tabs[5]] },
+    { title: isEnglish ? "Design & Content" : "المظهر والمحتوى", items: [tabs[2], tabs[3], tabs[4]] },
+    { title: isEnglish ? "Commerce & Delivery" : "التجارة والشحن", items: [tabs[5], tabs[6], tabs[7]] },
   ];
   const totalCouponUses = coupons.reduce((sum, coupon) => sum + coupon.uses, 0);
   const bestProduct = catalog.reduce<{
@@ -541,6 +647,20 @@ export default function Admin() {
                 {isEnglish ? "Saved successfully" : "تم الحفظ بنجاح"}
               </div>
             )}
+            <button
+              type="button"
+              disabled={syncing}
+              onClick={syncToDatabase}
+              className="dashboard-action-button bg-[#1c2822] text-[#f6f3ee] hover:bg-[#2c3d34] disabled:opacity-50"
+            >
+              {syncing
+                ? isEnglish
+                  ? "Syncing..."
+                  : "جارٍ الرفع..."
+                : isEnglish
+                  ? "Sync to Supabase"
+                  : "مزامنة ورفع إلى Supabase"}
+            </button>
             <button
               type="button"
               onClick={exportLocalData}
@@ -1217,10 +1337,42 @@ export default function Admin() {
                       placeholder="InstaPay address or number"
                     />
                   </label>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <label className="block text-[11px] font-bold">
+                      {isEnglish ? "Default shipping fee (EGP)" : "سعر الشحن الأساسي (ج.م)"}
+                      <input
+                        type="number"
+                        min="0"
+                        value={settings.shippingFee ?? 80}
+                        onChange={(event) =>
+                          setSettings({
+                            ...settings,
+                            shippingFee: Number(event.target.value) || 0,
+                          })
+                        }
+                        className={inputClass}
+                      />
+                    </label>
+
+                    <label className="block text-[11px] font-bold">
+                      {isEnglish ? "Free shipping order threshold (EGP)" : "الحد الأدنى للشحن المجاني (ج.م)"}
+                      <input
+                        type="number"
+                        min="0"
+                        value={settings.freeShippingThreshold ?? 2500}
+                        onChange={(event) =>
+                          setSettings({
+                            ...settings,
+                            freeShippingThreshold: Number(event.target.value) || 0,
+                          })
+                        }
+                        className={inputClass}
+                      />
+                    </label>
+                  </div>
+
                   <label className="block text-[11px] font-bold">
-                    {isEnglish
-                      ? "Sales WhatsApp number"
-                      : "رقم واتساب المبيعات"}
+                    {isEnglish ? "Sales WhatsApp number" : "رقم واتساب المبيعات"}
                     <input
                       type="text"
                       inputMode="numeric"
@@ -1379,6 +1531,142 @@ export default function Admin() {
                     {isEnglish ? "Save section" : "حفظ القسم"}
                   </button>
                 </form>
+              </div>
+            )}
+
+            {activeTab === "themes" && (
+              <div className="space-y-8">
+                <div className="bg-[#f6f3ee] p-6 sm:p-8">
+                  <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+                    <div>
+                      <h2 className="text-2xl font-serif">
+                        {isEnglish ? "Store Themes & Visual Identity" : "الثيمات والمظهر البصري للمتجر"}
+                      </h2>
+                      <p className="mt-1 text-[11px] text-black/60">
+                        {isEnglish
+                          ? "Select an active theme for your storefront or activate new premium collections."
+                          : "اختاري الثيم النشط لواجهة المتجر أو قومي بتفعيل باقات الثيمات الإضافية."}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 rounded-full bg-black/5 px-3 py-1.5 text-[11px] font-semibold text-black/70">
+                      <Sparkles size={14} className="text-[#d4775c]" />
+                      <span>{isEnglish ? "Active Theme:" : "الثيم النشط:"} <strong>{STORE_THEMES[settings.themeId || "casper_simple"]?.nameAr || "كاسبر سيمبل"}</strong></span>
+                    </div>
+                  </div>
+
+                  {themeUnlockStatus && (
+                    <div className={`mt-4 flex items-center gap-2 rounded border px-4 py-3 text-[11px] font-medium ${themeUnlockStatus.success ? "border-green-300 bg-green-50 text-green-800" : "border-red-300 bg-red-50 text-red-800"}`}>
+                      {themeUnlockStatus.success ? <CheckCircle2 size={16} /> : <Lock size={16} />}
+                      <span>{themeUnlockStatus.msg}</span>
+                    </div>
+                  )}
+
+                  <div className="mt-8 grid gap-6 md:grid-cols-2">
+                    {Object.values(STORE_THEMES).map((theme) => {
+                      const isActive = (settings.themeId || "casper_simple") === theme.id;
+                      const isUnlocked = unlockedThemesList.includes(theme.id);
+
+                      return (
+                        <div
+                          key={theme.id}
+                          className={`relative flex flex-col justify-between border bg-white p-5 transition ${isActive ? "border-2 border-black shadow-md ring-1 ring-black/10" : "border-black/10 hover:border-black/30"}`}
+                        >
+                          <div>
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <h3 className="text-[15px] font-bold text-black">{isEnglish ? theme.nameEn : theme.nameAr}</h3>
+                                  {isActive && (
+                                    <span className="rounded-full bg-[#1c2822] px-2 py-0.5 text-[9px] font-semibold text-white">
+                                      {isEnglish ? "ACTIVE" : "نشط الآن"}
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="mt-1 text-[11px] leading-relaxed text-black/60">
+                                  {isEnglish ? theme.descriptionEn : theme.descriptionAr}
+                                </p>
+                              </div>
+
+                              {theme.isPremium && (
+                                <span className={`shrink-0 rounded px-2 py-0.5 text-[9px] font-bold ${isUnlocked ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-900"}`}>
+                                  {isUnlocked ? (isEnglish ? "UNLOCKED" : "مفتوح") : (isEnglish ? theme.accentBadge : theme.accentBadgeAr)}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Theme visual token preview */}
+                            <div className="mt-4 rounded border border-black/5 bg-[#faf9f6] p-3">
+                              <div className="flex items-center justify-between text-[10px] text-black/50">
+                                <span>{isEnglish ? "Palette & Typography" : "الألوان والخطوط"}</span>
+                                <span className="font-mono text-[9px]">{theme.id}</span>
+                              </div>
+                              <div className="mt-2 flex items-center gap-2">
+                                <span className="h-6 w-12 rounded border border-black/10 shadow-sm" style={{ backgroundColor: theme.previewColor }} title="Primary" />
+                                <span className="h-6 w-8 rounded border border-black/10 shadow-sm" style={{ backgroundColor: theme.secondaryColor }} title="Secondary" />
+                                <span className="text-[10px] text-black/70 font-medium px-2 py-1 bg-white rounded border border-black/5">{theme.fontHeading.split(",")[0]}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="mt-5 border-t border-black/5 pt-4">
+                            {isActive ? (
+                              <button
+                                type="button"
+                                disabled
+                                className="flex w-full items-center justify-center gap-2 rounded bg-black/5 py-2.5 text-[11px] font-bold text-black/40 cursor-default"
+                              >
+                                <CheckCircle2 size={14} />
+                                {isEnglish ? "Currently Applied" : "مطبق حالياً"}
+                              </button>
+                            ) : isUnlocked ? (
+                              <button
+                                type="button"
+                                onClick={() => handleApplyTheme(theme.id)}
+                                className="flex w-full items-center justify-center gap-2 rounded bg-[#1c2822] py-2.5 text-[11px] font-bold text-white transition hover:bg-black cursor-pointer active:scale-[0.99]"
+                              >
+                                <Sparkles size={14} />
+                                {isEnglish ? "Apply This Theme" : "تطبيق هذا الثيم"}
+                              </button>
+                            ) : (
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="text"
+                                    placeholder={isEnglish ? "Enter license key (e.g. LUX-PRO)" : "أدخل كود تفعيل الثيم"}
+                                    value={themeLicenseKey}
+                                    onChange={(e) => setThemeLicenseKey(e.target.value)}
+                                    className="flex-1 border border-black/20 bg-white px-2.5 py-1.5 text-[10px]"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUnlockTheme(theme.id)}
+                                    className="flex items-center gap-1 bg-[#d4775c] px-3 py-1.5 text-[10px] font-bold text-white transition hover:bg-[#b85e45] cursor-pointer"
+                                  >
+                                    <Key size={12} />
+                                    {isEnglish ? "Unlock" : "تفعيل"}
+                                  </button>
+                                </div>
+                                <p className="text-[9px] text-black/50">
+                                  {isEnglish ? "License key unlocks lifetime access to this theme." : "كود التفعيل يفتح الثيم مدى الحياة للمتجر."}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Dev note */}
+                  <div className="mt-8 rounded border border-amber-200 bg-amber-50/70 p-4 text-[11px] text-amber-900">
+                    <p className="font-bold">{isEnglish ? "Developer / Admin Keys Hint:" : "ملاحظة التفعيل للمطور / المالك:"}</p>
+                    <p className="mt-1">
+                      {isEnglish
+                        ? "Master unlock key: CASPER-VIP-2026 or UNLOCK-ALL-THEMES. Specific keys: LUX-8821-PRO, BF-SALE-2026, NY-FESTIVE-PRO."
+                        : "مفتاح فتح كل الثيمات العام: CASPER-VIP-2026 أو UNLOCK-ALL-THEMES. ومفاتيح مخصصة مثل: LUX-8821-PRO أو BF-SALE-2026."}
+                    </p>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -1559,6 +1847,164 @@ export default function Admin() {
                     </div>
                   )}
                 </div>
+              </div>
+            )}
+
+            {activeTab === "shipping" && (
+              <div className="space-y-8">
+                <form
+                  onSubmit={saveSettings}
+                  className="space-y-6 bg-[#f6f3ee] p-6 sm:p-8"
+                >
+                  <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+                    <div>
+                      <h2 className="text-2xl">
+                        {isEnglish ? "Shipping & Delivery Settings" : "إعدادات الشحن والتوصيل"}
+                      </h2>
+                      <p className="mt-2 text-[11px] text-black/50">
+                        {isEnglish
+                          ? "Set base delivery rate, free shipping threshold, and governorate tariffs."
+                          : "تحديد سعر الشحن الأساسي، حد الشحن المجاني، وأسعار المحافظات."}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-6 md:grid-cols-2">
+                    <label className="block text-[11px] font-bold">
+                      {isEnglish ? "Default shipping fee (EGP)" : "سعر الشحن الأساسي (ج.م)"}
+                      <input
+                        type="number"
+                        min="0"
+                        value={settings.shippingFee ?? 80}
+                        onChange={(event) =>
+                          setSettings({
+                            ...settings,
+                            shippingFee: Number(event.target.value) || 0,
+                          })
+                        }
+                        className={inputClass}
+                      />
+                    </label>
+
+                    <label className="block text-[11px] font-bold">
+                      {isEnglish ? "Free shipping minimum order (EGP)" : "الحد الأدنى للشحن المجاني (ج.م)"}
+                      <input
+                        type="number"
+                        min="0"
+                        value={settings.freeShippingThreshold ?? 2500}
+                        onChange={(event) =>
+                          setSettings({
+                            ...settings,
+                            freeShippingThreshold: Number(event.target.value) || 0,
+                          })
+                        }
+                        className={inputClass}
+                      />
+                    </label>
+                  </div>
+
+                  <div className="flex items-center gap-3 border-t border-black/10 pt-4">
+                    <input
+                      type="checkbox"
+                      id="freeShippingEnabled"
+                      checked={settings.freeShippingEnabled !== false}
+                      onChange={(event) =>
+                        setSettings({
+                          ...settings,
+                          freeShippingEnabled: event.target.checked,
+                        })
+                      }
+                      className="h-4 w-4 accent-[#1c2822]"
+                    />
+                    <label
+                      htmlFor="freeShippingEnabled"
+                      className="cursor-pointer text-[12px] font-bold"
+                    >
+                      {isEnglish
+                        ? "Enable Free Shipping on qualifying cart totals"
+                        : "تفعيل ميزة الشحن المجاني عند الوصول للحد الأدنى"}
+                    </label>
+                  </div>
+
+                  <div className="space-y-4 border-t border-black/10 pt-4">
+                    <div>
+                      <h3 className="text-[12px] font-bold">
+                        {isEnglish
+                          ? "Governorate delivery tariffs"
+                          : "تعريفة التوصيل حسب المحافظة"}
+                      </h3>
+                      <p className="mt-1 text-[10px] text-black/50">
+                        {isEnglish
+                          ? "Customize delivery rates for specific Egyptian governorates."
+                          : "تخصيص أسعار الشحن لمحافظات محددة (مثل القاهرة/الجيزة، الإسكندرية، الصعيد)."}
+                      </p>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      {[
+                        { gov: "القاهرة والجيزة", def: 70 },
+                        { gov: "الإسكندرية", def: 80 },
+                        { gov: "محافظات الدلتا والقناة", def: 85 },
+                        { gov: "شمال ووسط الصعيد", def: 95 },
+                        { gov: "جنوب الصعيد والمحافظات الحدودية", def: 110 },
+                        { gov: "المدن الجديدة والساحل", def: 90 },
+                      ].map((item, idx) => {
+                        const currentRate =
+                          settings.governorateShipping?.find(
+                            (g) => g.governorate === item.gov,
+                          )?.price ?? item.def;
+                        return (
+                          <div
+                            key={idx}
+                            className="border border-black/10 bg-white p-3 space-y-2"
+                          >
+                            <span className="text-[11px] font-bold block">
+                              {item.gov}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                min="0"
+                                value={currentRate}
+                                onChange={(e) => {
+                                  const val = Number(e.target.value) || 0;
+                                  const currentList =
+                                    settings.governorateShipping || [];
+                                  const exists = currentList.some(
+                                    (g) => g.governorate === item.gov,
+                                  );
+                                  const nextList = exists
+                                    ? currentList.map((g) =>
+                                        g.governorate === item.gov
+                                          ? { ...g, price: val }
+                                          : g,
+                                      )
+                                    : [
+                                        ...currentList,
+                                        { governorate: item.gov, price: val },
+                                      ];
+                                  setSettings({
+                                    ...settings,
+                                    governorateShipping: nextList,
+                                  });
+                                }}
+                                className="w-full border border-black/15 px-3 py-1.5 text-[11px]"
+                              />
+                              <span className="text-[10px] text-black/50">
+                                ج.م
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <button className="flex w-full items-center justify-center gap-2 bg-[#1c2822] py-3 text-[11px] font-bold text-white">
+                    <Save size={15} />
+                    {isEnglish ? "Save shipping settings" : "حفظ إعدادات الشحن"}
+                  </button>
+                </form>
               </div>
             )}
 
@@ -1770,7 +2216,7 @@ export default function Admin() {
                                   href={order.receipt}
                                   target="_blank"
                                   rel="noreferrer"
-                                  className="underline"
+                                  className="underline text-[#1c2822] font-bold"
                                 >
                                   {isEnglish ? "View" : "عرض"}
                                 </a>
@@ -1778,7 +2224,24 @@ export default function Admin() {
                                 "-"
                               )}
                             </td>
-                            <td>{order.status}</td>
+                            <td>
+                              <select
+                                value={order.status}
+                                onChange={(e) =>
+                                  updateOrderStatus(
+                                    order.id,
+                                    e.target.value as StoreOrder["status"],
+                                  )
+                                }
+                                className="border border-black/20 bg-white px-2 py-1 text-[11px] rounded"
+                              >
+                                <option value="جديد">جديد (New)</option>
+                                <option value="مؤكد">مؤكد (Confirmed)</option>
+                                <option value="تم الشحن">تم الشحن (Shipped)</option>
+                                <option value="مكتمل">مكتمل (Delivered)</option>
+                                <option value="ملغي">ملغي (Cancelled)</option>
+                              </select>
+                            </td>
                           </tr>
                         ))}
                       </tbody>

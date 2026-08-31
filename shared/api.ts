@@ -70,6 +70,7 @@ export interface CreateOrderRequest {
   paymentMethod: "cod" | "wallet" | "instapay";
   transferNumber?: string;
   receiptPath?: string;
+  shippingAmount?: number;
   couponCode?: string;
   items: CartRequestItem[];
 }

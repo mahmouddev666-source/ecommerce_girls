@@ -547,13 +547,19 @@ const cartKey = (item: Pick<CartItem, "product" | "variant">) =>
 export type SiteSettings = {
   announcement: string;
   accent: string;
+  themeId?: string;
+  unlockedThemes?: string[];
   heroTitle?: string;
   heroDescription?: string;
   walletNumber?: string;
   instapayNumber?: string;
   salesWhatsappNumber?: string;
   salesWhatsappUrl?: string;
+  shippingFee?: number;
+  freeShippingThreshold?: number;
+  freeShippingEnabled?: boolean;
   discoverVideos?: string[];
+  governorateShipping?: Array<{ governorate: string; price: number }>;
   socialLinks?: {
     instagram?: string;
     facebook?: string;
@@ -663,6 +669,7 @@ type StoreContextValue = {
   updateSiteSettings: (settings: SiteSettings) => void;
   updateSection: (key: string, section: SectionSettings) => void;
   updatePageSettings: (settings: PageSettings) => void;
+  updateOrderStatus: (id: string, status: StoreOrder["status"]) => void;
   addCoupon: (coupon: Coupon) => void;
   deleteCoupon: (code: string) => void;
   liked: number[];
@@ -726,6 +733,8 @@ export function StoreLayout({ children }: { children: ReactNode }) {
       announcement:
         "Free shipping on orders over 2,500 EGP · Cash on delivery available",
       accent: "#d4775c",
+      themeId: "casper_simple",
+      unlockedThemes: ["casper_simple"],
       heroTitle: "New for Summer 2026",
       heroDescription: "Modest styles designed for everyday comfort.",
       salesWhatsappNumber: "201068568250",
@@ -901,11 +910,25 @@ export function StoreLayout({ children }: { children: ReactNode }) {
         if (
           settingsResult.status === "fulfilled" &&
           Object.keys(settingsResult.value).length
-        )
+        ) {
+          const val = settingsResult.value as Record<string, any>;
+          if (val.sections) {
+            setSections((current) => ({ ...current, ...val.sections }));
+          }
+          if (val.pageSettings) {
+            setPageSettings((current) => ({
+              ...current,
+              ...val.pageSettings,
+              about: { ...current.about, ...(val.pageSettings?.about || {}) },
+              shipping: { ...current.shipping, ...(val.pageSettings?.shipping || {}) },
+              contact: { ...current.contact, ...(val.pageSettings?.contact || {}) },
+            }));
+          }
           setSiteSettings(
             (current) =>
-              ({ ...current, ...settingsResult.value }) as SiteSettings,
+              ({ ...current, ...val }) as SiteSettings,
           );
+        }
       },
     );
     Promise.allSettled([
@@ -1064,10 +1087,25 @@ export function StoreLayout({ children }: { children: ReactNode }) {
       ),
     );
   };
-  const updateSection = (key: string, section: SectionSettings) =>
-    setSections((current) => ({ ...current, [key]: section }));
-  const updatePageSettings = (settings: PageSettings) =>
+  const updateSection = (key: string, section: SectionSettings) => {
+    setSections((current) => {
+      const updated = { ...current, [key]: section };
+      void storeApi.admin.settings("sections", updated);
+      return updated;
+    });
+  };
+  const updatePageSettings = (settings: PageSettings) => {
     setPageSettings(settings);
+    void storeApi.admin.settings("pageSettings", settings);
+  };
+  const updateOrderStatus = (id: string, status: StoreOrder["status"]) => {
+    setOrders((current) =>
+      current.map((order) =>
+        order.id === id ? { ...order, status } : order,
+      ),
+    );
+    void storeApi.admin.updateOrder(id, status);
+  };
   const addCoupon = (coupon: Coupon) => {
     setCoupons((current) => [...current, coupon]);
     void storeApi.admin.createCoupon({
@@ -1109,6 +1147,7 @@ export function StoreLayout({ children }: { children: ReactNode }) {
         updateSiteSettings,
         updateSection,
         updatePageSettings,
+        updateOrderStatus,
         addCoupon,
         deleteCoupon,
         liked,

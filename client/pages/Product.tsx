@@ -21,15 +21,17 @@ const sizes = ["S", "M", "L", "XL", "XXL"];
 
 export default function Product() {
   const { id } = useParams();
-  const { catalog, addToCart, liked, toggleLike, language } = useStore();
+  const { catalog, addToCart, liked, toggleLike, language, siteSettings, pageSettings } = useStore();
   const isEnglish = language === "en";
   const product = catalog.find((item) => item.id === id) || catalog[0];
   const productName = getProductName(product, language);
-  const productDescription =
-    (isEnglish ? product.descriptionEn : product.description) ||
+  const rawDescription = isEnglish ? (product.descriptionEn || product.description) : (product.description || product.descriptionEn);
+  const productDescription = rawDescription?.trim() ||
     (isEnglish
       ? "A thoughtful everyday piece designed for comfort, ease, and effortless styling."
       : "قطعة مصممة عشان تكمل يومك بسهولة. خامة مريحة وقصّة مدروسة، تتلبس بطريقتك وفي كل مناسبة.");
+  
+  const [activeTab, setActiveTab] = useState<"shipping" | "returns">("shipping");
   const galleryImages = product.images?.length
     ? product.images.slice(0, 5)
     : [product.image, product.image, product.image];
@@ -51,6 +53,21 @@ export default function Product() {
     for (let count = 0; count < quantity; count += 1)
       addToCart(product, { size: selectedSize, color: selectedColor });
     setAdded(true);
+  };
+
+  const openWhatsAppInquiry = () => {
+    const baseUrl = siteSettings.salesWhatsappUrl?.trim() ||
+      (siteSettings.salesWhatsappNumber
+        ? `https://wa.me/${siteSettings.salesWhatsappNumber.replace(/\D/g, "")}`
+        : "https://wa.me/201068568250");
+
+    const message = isEnglish
+      ? `Hello! I would like to ask about this piece: ${productName} (Code: ${product.id}) - Price: ${getProductPrice(product, language)}. Link: ${window.location.href}`
+      : `مرحباً! أود الاستفسار عن هذه القطعة: ${productName} (كود: ${product.id}) - السعر: ${getProductPrice(product, language)}. الرابط: ${window.location.href}`;
+
+    const separator = baseUrl.includes("?") ? "&" : "?";
+    const targetUrl = `${baseUrl}${separator}text=${encodeURIComponent(message)}`;
+    window.open(targetUrl, "_blank", "noopener,noreferrer");
   };
 
   return (
@@ -208,14 +225,7 @@ export default function Product() {
               </div>
             </div>
 
-            <div className="mt-5 rounded-[4px] bg-[#fff7eb] px-4 py-3 text-[10px] leading-6 text-[#94612e]">
-              <span className="ml-1">⏳</span>{" "}
-              {isEnglish
-                ? "More than 5 shoppers are viewing this piece"
-                : "أكثر من ٥ عميلات يشاهدن هذا المنتج الآن"}
-            </div>
-
-            <div className="mt-5 flex gap-2">
+            <div className="mt-6 flex gap-2">
               <div className="flex h-12 items-center rounded-[4px] border border-black/15">
                 <button
                   onClick={() => setQuantity((value) => Math.max(1, value - 1))}
@@ -254,13 +264,6 @@ export default function Product() {
               {isEnglish ? "Buy now" : "اشتري الآن"}
             </Link>
 
-            <div className="mt-5 flex items-center justify-center gap-3 text-[9px] text-black/50">
-              <span className="h-4 w-7 rounded-sm border border-black/20 bg-[#e9e9e9]" />
-              <span className="h-4 w-7 rounded-sm border border-black/20 bg-[#f6d9a5]" />
-              <span className="h-4 w-7 rounded-sm border border-black/20 bg-[#c9dcf2]" />
-              {isEnglish ? "Secure encrypted payment" : "دفع آمن ومشفر"}
-            </div>
-
             <div className="mt-7 border-t border-black/10 pt-6">
               <h2 className="mb-4 text-[13px] font-semibold">
                 {isEnglish ? "Description" : "الوصف"}
@@ -295,40 +298,67 @@ export default function Product() {
 
             <div className="mt-8 border-t border-black/10 pt-5">
               <div className="flex gap-5 border-b border-black/10 text-[11px] font-semibold">
-                <button className="border-b-2 border-black pb-3">
-                  {isEnglish ? "Shipping" : "شحن"}
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("shipping")}
+                  className={`pb-3 transition ${activeTab === "shipping" ? "border-b-2 border-black font-bold text-black" : "text-black/45 hover:text-black"}`}
+                >
+                  {isEnglish ? "Shipping" : "الشحن"}
                 </button>
-                <button className="pb-3 text-black/45">
-                  {isEnglish ? "Returns" : "المرتجعات"}
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("returns")}
+                  className={`pb-3 transition ${activeTab === "returns" ? "border-b-2 border-black font-bold text-black" : "text-black/45 hover:text-black"}`}
+                >
+                  {isEnglish ? "Returns & Exchanges" : "الاستبدال والاسترجاع"}
                 </button>
               </div>
-              <div className="pt-5 text-[10px] leading-7 text-black/70">
-                <p className="font-semibold text-black">
-                  {isEnglish ? "Fast, reliable delivery" : "توصيل سريع وموثوق"}
-                </p>
-                <ul className="mt-2 list-disc space-y-0.5 pr-5">
-                  <li>
-                    {isEnglish
-                      ? "Delivery across Egypt"
-                      : "التوصيل في جميع أنحاء مصر"}
-                  </li>
-                  <li>
-                    {isEnglish
-                      ? "Orders ship within 2–5 business days"
-                      : "يتم شحن الطلبات خلال ٢–٥ أيام عمل"}
-                  </li>
-                  <li>
-                    {isEnglish
-                      ? "Packed safely to protect your piece"
-                      : "تم تغليفها بطريقة آمنة للحفاظ على القطعة"}
-                  </li>
-                </ul>
-                <p className="mt-4">
-                  {isEnglish
-                    ? "Our support team is happy to help with delivery questions."
-                    : "لأي استفسارات تتعلق بالتوصيل، يسعد فريق الدعم لدينا بتقديم المساعدة."}
-                </p>
-              </div>
+              
+              {activeTab === "shipping" ? (
+                <div className="pt-5 text-[10px] leading-7 text-black/70">
+                  <p className="font-semibold text-black">
+                    {isEnglish ? "Fast, reliable delivery" : (pageSettings.shipping?.titleAr || "توصيل سريع وموثوق")}
+                  </p>
+                  <p className="mt-1 text-black/80 whitespace-pre-line leading-6">
+                    {isEnglish ? (pageSettings.shipping?.contentEn || "Delivery across Egypt within 2-4 business days.") : (pageSettings.shipping?.contentAr || "نوفر شحناً سريعاً لجميع محافظات مصر خلال ٢ إلى ٤ أيام عمل.")}
+                  </p>
+                  <ul className="mt-3 list-disc space-y-1 pr-5">
+                    <li>
+                      {isEnglish
+                        ? "Free shipping on orders over 2,500 EGP"
+                        : "شحن مجاني للطلبات الأكثر من ٢,٥٠٠ ج.م"}
+                    </li>
+                    <li>
+                      {isEnglish
+                        ? "Packed safely with care in Cairo"
+                        : "تغليف فاخر وآمن لحماية القطعة"}
+                    </li>
+                  </ul>
+                </div>
+              ) : (
+                <div className="pt-5 text-[10px] leading-7 text-black/70">
+                  <p className="font-semibold text-black">
+                    {isEnglish ? "Easy Returns & Exchanges" : "سياسة الاستبدال والاسترجاع"}
+                  </p>
+                  <ul className="mt-2 list-disc space-y-1 pr-5">
+                    <li>
+                      {isEnglish
+                        ? "Free exchange available within 14 days of receiving your order"
+                        : "إمكانية الاستبدال أو الاسترجاع بكل سهولة خلال ١٤ يوماً"}
+                    </li>
+                    <li>
+                      {isEnglish
+                        ? "Piece must be in its original condition with tags attached"
+                        : "يشترط أن تكون القطعة في حالتها الأصلية مع الحفاظ على التيكيت"}
+                    </li>
+                    <li>
+                      {isEnglish
+                        ? "Direct support via WhatsApp for any return requests"
+                        : "خدمة عملاء مباشرة عبر واتساب لتنسيق الاستبدال فوراً"}
+                    </li>
+                  </ul>
+                </div>
+              )}
             </div>
 
             <div className="mt-10">
@@ -382,14 +412,14 @@ export default function Product() {
                               color: item.colors?.[0],
                             })
                           }
-                          className="flex h-9 shrink-0 items-center gap-1 rounded-xl bg-[#222] px-3 text-[9px] font-semibold text-white"
+                          className="flex h-9 shrink-0 items-center gap-1 rounded-xl bg-[#222] px-3 text-[9px] font-semibold text-white cursor-pointer hover:bg-black"
                         >
                           <Plus size={12} /> {isEnglish ? "Add" : "يضاف"}
                         </button>
                       ) : (
                         <Link
                           to={`/product/${item.id}`}
-                          className="flex h-9 w-10 shrink-0 items-center justify-center rounded-xl bg-[#d7d7d3] text-[9px] text-black/55"
+                          className="flex h-9 w-10 shrink-0 items-center justify-center rounded-xl bg-[#d7d7d3] text-[9px] text-black/55 hover:text-black"
                         >
                           {isEnglish ? "View" : "تنفيذ"}
                         </Link>
@@ -398,19 +428,14 @@ export default function Product() {
                   ))}
               </div>
               <button
-                onClick={() =>
-                  window.alert(
-                    isEnglish
-                      ? "Our support team will contact you on WhatsApp soon."
-                      : "سيتواصل معك فريق الدعم عبر واتساب قريبًا.",
-                  )
-                }
-                className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#25d366] text-[11px] font-semibold text-white"
+                type="button"
+                onClick={openWhatsAppInquiry}
+                className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#25d366] text-[11px] font-semibold text-white shadow-sm hover:bg-[#20b858] transition cursor-pointer active:scale-[0.99]"
               >
                 <MessageCircle size={15} />{" "}
                 {isEnglish
-                  ? "Chat with us on WhatsApp"
-                  : "تواصلي معنا عبر واتساب"}
+                  ? "Chat with us on WhatsApp about this piece"
+                  : "استفسري عن هذه القطعة عبر واتساب"}
               </button>
             </div>
           </div>

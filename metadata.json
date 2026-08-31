@@ -1,0 +1,6 @@
+{
+  "name": "No Name - Modest Wear",
+  "description": "An elegant e-commerce storefront and admin management platform for modest wear, featuring product collections, shopping cart, checkout, and order tracking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

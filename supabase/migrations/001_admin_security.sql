@@ -43,3 +43,16 @@ create index if not exists audit_logs_entity_created_idx
 alter table public.admin_users enable row level security;
 alter table public.admin_sessions enable row level security;
 alter table public.audit_logs enable row level security;
+
+-- Default initial admin seed (admin / admin123)
+insert into public.admin_users (id, username, password_hash, role, is_active)
+values (
+  'a0000000-0000-0000-0000-000000000001'::uuid,
+  'admin',
+  crypt('admin123', gen_salt('bf')),
+  'admin',
+  true
+)
+on conflict (username) do update set
+  is_active = true;
+

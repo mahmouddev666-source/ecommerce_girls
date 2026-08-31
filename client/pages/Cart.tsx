@@ -14,6 +14,7 @@ export default function Cart() {
     cartItems,
     updateQuantity,
     removeFromCart,
+    siteSettings,
     language,
     coupons,
     appliedCouponCode,
@@ -36,7 +37,10 @@ export default function Cart() {
     (total, item) => total + getProductUnitPrice(item.product) * item.quantity,
     0,
   );
-  const shipping = subtotal >= 2500 || subtotal === 0 ? 0 : 80;
+  const baseShipping = typeof siteSettings.shippingFee === "number" ? siteSettings.shippingFee : 80;
+  const freeThreshold = typeof siteSettings.freeShippingThreshold === "number" ? siteSettings.freeShippingThreshold : 2500;
+  const isFreeShipping = siteSettings.freeShippingEnabled !== false && subtotal >= freeThreshold;
+  const shipping = subtotal === 0 || isFreeShipping ? 0 : baseShipping;
   const discountAmount = appliedCoupon
     ? (subtotal * appliedCoupon.discount) / 100
     : 0;
